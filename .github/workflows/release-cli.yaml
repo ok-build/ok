@@ -11,6 +11,8 @@ on:
 jobs:
   create-release:
     runs-on: ubuntu-22.04
+    permissions:
+      contents: write
     steps:
       - name: Create draft release
         env:
@@ -32,6 +34,8 @@ jobs:
           - os: macos-13-xlarge # macOS arm64
     runs-on: ${{ matrix.os }}
     needs: [create-release]
+    permissions:
+      contents: write
     steps:
       - name: Clean workspace
         run: |
@@ -95,6 +99,8 @@ jobs:
   publish-release:
     runs-on: ubuntu-22.04
     needs: [build-artifacts]
+    permissions:
+      contents: write
     steps:
       - name: Publish release
         env:
