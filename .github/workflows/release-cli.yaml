@@ -1,0 +1,103 @@
+name: "Release CLI"
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release"
+        required: true
+        default: "v0.0.1"
+
+jobs:
+  create-release:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Create draft release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.inputs.version }}
+        run: |
+          set -x  # print executed commands
+
+          gh release create "$TAG" \
+            --repo=ok-build/ok --title="$TAG" --draft --notes="Release version $TAG"
+
+  build-artifacts:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-22.04
+          # - os: ubuntu-22.04-16cpu-arm64-arm-limited # linux arm64
+          - os: macos-13 # macOS amd64
+          - os: macos-13-xlarge # macOS arm64
+    runs-on: ${{ matrix.os }}
+    needs: [create-release]
+    steps:
+      - name: Clean workspace
+        run: |
+          set -x
+          ls -la ./
+          rm -rf ./* || true
+          rm -rf ./.??* || true
+          ls -la ./
+
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          path: ok
+
+      - name: Build Artifacts
+        id: build
+        env:
+          XCODE_VERSION: 12.4
+          GO_REPOSITORY_USE_HOST_CACHE: 1
+        run: |
+          set -x  # print executed commands
+          if [[ "$OSTYPE" == darwin* ]]; then
+            OS=darwin
+            GOMODCACHE=/Users/runner/go-mod-cache
+          else
+            OS=linux
+            GOMODCACHE=/home/runner/go-mod-cache
+          fi
+          ARCH=$(uname -m)
+          # bazelisk uses "x86_64" / "arm64" convention
+          if [[ "$ARCH" == "aarch64" ]]; then
+            ARCH=arm64
+          fi
+          VERSION=${{ github.event.inputs.version }}
+
+          cd ok
+
+          bazelisk build \
+              --repository_cache='~/repo-cache/' \
+              --//cli/version:cli_version="$VERSION" \
+              //cli/cmd/ok
+
+          BINARY="ok-${VERSION}-${OS}-${ARCH}"
+          cp bazel-bin/cli/cmd/ok/ok_/ok "$BINARY"
+          shasum -a 256 "$BINARY" > "${BINARY}.sha256"
+          echo "BINARY=${BINARY}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Artifacts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -x  # print executed commands
+          cd ok
+          gh release upload \
+            --repo ok-build/ok \
+            --clobber \
+            "${{ github.event.inputs.version }}" \
+            "${{ steps.build.outputs.BINARY }}" \
+            "${{ steps.build.outputs.BINARY }}.sha256"
+
+  publish-release:
+    runs-on: ubuntu-22.04
+    needs: [build-artifacts]
+    steps:
+      - name: Publish release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release edit ${{ github.event.inputs.version }} --draft=false --repo=ok-build/ok
