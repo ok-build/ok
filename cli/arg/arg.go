@@ -123,3 +123,21 @@ func ContainsExact(args []string, value string) bool {
 	return false
 }
 
+// Returns a list of bazel targets specified in the given set of arguments, if any.
+// This function assumes that the arguments are canonicalized.
+func GetTargets(args []string) []string {
+	command := GetCommand(args)
+	nonOptionArgs := []string{}
+	for _, arg := range args {
+		if arg == "--" && command == "run" {
+			break
+		}
+		if !strings.HasPrefix(arg, "-") {
+			nonOptionArgs = append(nonOptionArgs, arg)
+		}
+	}
+	if len(nonOptionArgs) == 0 {
+		return nonOptionArgs
+	}
+	return nonOptionArgs[1:]
+}
