@@ -11,6 +11,7 @@ import (
 	"ok.build/cli/help"
 	"ok.build/cli/log"
 	"ok.build/cli/picker"
+	"ok.build/cli/shortcuts"
 
 	"ok.build/cli/command/register"
 )
@@ -44,6 +45,9 @@ func run() (exitCode int, err error) {
 
 	// Register all known cli commands so that we can query or iterate them later.
 	register.Register()
+
+	// Expand command shortcuts like b=>build, t=>test, etc.
+	args = shortcuts.HandleShortcuts(args)
 
 	// Handle help command if applicable.
 	exitCode, err = help.HandleHelp(args)

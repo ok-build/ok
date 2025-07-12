@@ -16,6 +16,7 @@ go_library(
         "//cli/help",
         "//cli/log",
         "//cli/picker",
+        "//cli/shortcuts",
     ],
 )
 
